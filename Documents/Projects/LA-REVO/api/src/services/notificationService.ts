@@ -5,15 +5,20 @@ import { getConfig } from './configService.js';
 const prisma = new PrismaClient();
 
 // Create a notification and optionally send an email
-export async function createNotification({ userId, type, message, adminId, relatedBanId, sendEmail = false, email }: {
+export async function createNotification({ userId, type, message, adminId, relatedBanId, sendEmail = false, email, emailSubject, emailText, emailHtml }: {
   userId: string,
   type: string,
   message: string,
   adminId?: string,
   relatedBanId?: string,
   sendEmail?: boolean,
-  email?: string
+  email?: string,
+  emailSubject?: string,
+  emailText?: string,
+  emailHtml?: string
 }) {
+  try {
+    console.log('[createNotification] Creating notification:', { userId, type, message, adminId, relatedBanId, sendEmail, email });
   const notification = await prisma.notification.create({
     data: {
       userId,
@@ -23,14 +28,24 @@ export async function createNotification({ userId, type, message, adminId, relat
       relatedBanId
     }
   });
+    console.log('[createNotification] Notification created:', notification);
   if (sendEmail && email) {
-    await sendEmailNotification({ to: email, subject: `Notification: ${type}`, text: message });
+      await sendEmailNotification({
+        to: email,
+        subject: emailSubject || `Notification: ${type}`,
+        text: emailText || message,
+        html: emailHtml
+      });
   }
   return notification;
+  } catch (err) {
+    console.error('[createNotification] Error creating notification:', err);
+    throw err;
+  }
 }
 
 // Stub: send an email notification (configurable SMTP)
-export async function sendEmailNotification({ to, subject, text }: { to: string, subject: string, text: string }) {
+export async function sendEmailNotification({ to, subject, text, html }: { to: string, subject: string, text: string, html?: string }) {
   // Fetch SMTP config from DB
   const config = await getConfig();
   const host = config.smtpHost || process.env.SMTP_HOST || 'localhost';
@@ -44,7 +59,7 @@ export async function sendEmailNotification({ to, subject, text }: { to: string,
     secure: false,
     auth: user ? { user, pass } : undefined
   });
-  await transporter.sendMail({ from, to, subject, text });
+  await transporter.sendMail({ from, to, subject, text, html });
 }
 
 // Fetch notifications for a user

@@ -11,7 +11,7 @@ export async function rssFeedHandler(request: FastifyRequest, reply: FastifyRepl
 
   // Authenticate user by RSS token
   const user = await prisma.user.findUnique({ where: { rssToken: token, rssEnabled: true } });
-  if (!user) return reply.status(401).send('Invalid or disabled RSS token');
+  if (!user || user.status !== 'ACTIVE') return reply.status(401).send('Invalid or disabled RSS token');
 
   // Get config for default count
   const config = await prisma.config.findFirst({});

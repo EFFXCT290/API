@@ -17,7 +17,14 @@ export async function listBookmarksHandler(request: FastifyRequest, reply: Fasti
     }),
     prisma.bookmark.count({ where: { userId: user.id } })
   ]);
-  return reply.send({ bookmarks, total, page: Number(page), limit: Number(limit) });
+  // Flatten and serialize BigInt
+  const torrents = bookmarks.map(b => ({
+    ...b.torrent,
+    size: b.torrent.size?.toString?.() ?? "0",
+    createdAt: b.torrent.createdAt,
+    note: b.note || "", // <-- include the note!
+  }));
+  return reply.send({ bookmarks: torrents, total, page: Number(page), limit: Number(limit) });
 }
 
 export async function addBookmarkHandler(request: FastifyRequest, reply: FastifyReply) {

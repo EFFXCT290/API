@@ -46,6 +46,13 @@ model User {
   bookmarks      Bookmark[]
   rssToken       String?   @unique
   rssEnabled     Boolean   @default(true)
+  emailVerificationTokens EmailVerificationToken[]
+  passwordResetTokens PasswordResetToken[]
+  avatarFile     UploadedFile? @relation("UserAvatarFile", fields: [avatarFileId], references: [id])
+  avatarFileId   String? @unique
+  avatarUrl      String?
+  comments       Comment[]
+  commentVotes   CommentVote[]
 
   @@index([rssToken])
 }
@@ -95,6 +102,10 @@ model Torrent {
   categoryId  String
   requests    Request[]
   bookmarks   Bookmark[]
+  posterFile  UploadedFile? @relation("TorrentPosterFile", fields: [posterFileId], references: [id])
+  posterFileId String? @unique
+  posterUrl   String?
+  comments    Comment[]
 }
 
 model Announce {
@@ -156,6 +167,10 @@ model Config {
   smtpFrom String?
   // RSS config
   rssDefaultCount Int @default(20)
+  s3Bucket         String?
+  s3Region         String?
+  s3AccessKeyId    String?
+  s3SecretAccessKey String?
 }
 
 enum RegMode {
@@ -167,7 +182,6 @@ enum RegMode {
 enum StorageType {
   LOCAL
   S3
-  CDN
   DB
 }
 
@@ -193,6 +207,7 @@ model Request {
   categoryId     String?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
+  comments       Comment[]
 }
 
 model HitAndRun {
@@ -304,4 +319,78 @@ model Bookmark {
   note       String?
 
   @@unique([userId, torrentId])
+}
+
+model EmailVerificationToken {
+  id        String   @id @default(uuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  token     String   @unique
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  used      Boolean  @default(false)
+
+  @@index([userId])
+  @@index([token])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  token     String   @unique
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  used      Boolean  @default(false)
+
+  @@index([userId])
+  @@index([token])
+}
+
+model UploadedFile {
+  id         String   @id @default(uuid())
+  type       String   // e.g., 'torrent', 'nfo', 'image', etc.
+  ext        String   // e.g., '.torrent', '.nfo', '.jpg'
+  storageKey String   // relative path, S3 key, or DB marker
+  size       Int
+  mimeType   String
+  data       Bytes?   // Only used for DB storage
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  userAvatar User?    @relation("UserAvatarFile")
+  torrentPoster Torrent? @relation("TorrentPosterFile")
+}
+
+model Comment {
+  id          String   @id @default(cuid())
+  content     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deleted     Boolean  @default(false)
+  // Threading
+  parentId    String?
+  parent      Comment? @relation("CommentToReplies", fields: [parentId], references: [id])
+  replies     Comment[] @relation("CommentToReplies")
+  // Association (one of these will be set)
+  torrentId   String?
+  torrent     Torrent? @relation(fields: [torrentId], references: [id])
+  requestId   String?
+  request     Request? @relation(fields: [requestId], references: [id])
+  // Author
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  // Voting
+  votes       CommentVote[]
+}
+
+model CommentVote {
+  id        String   @id @default(cuid())
+  userId    String
+  commentId String
+  value     Int      // 1 for upvote, -1 for downvote
+  createdAt DateTime @default(now())
+  // Relations
+  user      User     @relation(fields: [userId], references: [id])
+  comment   Comment  @relation(fields: [commentId], references: [id])
+  @@unique([userId, commentId])
 }
